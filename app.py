@@ -1,4 +1,10 @@
-import spaces
+import os
+try:
+    import spaces
+    HAS_SPACES = True
+except ImportError:
+    HAS_SPACES = False
+
 import gradio as gr
 import chromadb
 from sentence_transformers import SentenceTransformer
@@ -20,7 +26,6 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 llm_model.to(device)
 
 
-@spaces.GPU
 def ask_llm(prompt, max_new_tokens=300):
     formatted = llm_tokenizer.apply_chat_template(
         [{"role": "user", "content": prompt}],
@@ -223,4 +228,4 @@ with gr.Blocks(title="RAG Intrusion Console") as demo:
         outputs=[retrieval_box, baseline_box, rag_box, verdict_box]
     )
 
-demo.launch(server_name="0.0.0.0", server_port=7860, css=CSS)
+demo.launch()
