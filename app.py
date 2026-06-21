@@ -5,7 +5,7 @@ from sentence_transformers import SentenceTransformer
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch, re
 
-CHROMA_PATH = "./chroma_store"
+CHROMA_PATH = "./chroma_store_export"
 client = chromadb.PersistentClient(path=CHROMA_PATH)
 collection = client.get_or_create_collection(name="nslkdd_attacks")
 
