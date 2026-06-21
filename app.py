@@ -3,7 +3,8 @@ import gradio as gr
 import chromadb
 from sentence_transformers import SentenceTransformer
 from transformers import AutoTokenizer, AutoModelForCausalLM
-import torch, re
+import torch
+import re
 
 CHROMA_PATH = "./chroma_store_export"
 client = chromadb.PersistentClient(path=CHROMA_PATH)
@@ -18,15 +19,22 @@ llm_model = AutoModelForCausalLM.from_pretrained(LLM_NAME, torch_dtype=torch.flo
 device = "cuda" if torch.cuda.is_available() else "cpu"
 llm_model.to(device)
 
+
 @spaces.GPU
 def ask_llm(prompt, max_new_tokens=300):
     formatted = llm_tokenizer.apply_chat_template(
-        [{"role": "user", "content": prompt}], tokenize=False, add_generation_prompt=True
+        [{"role": "user", "content": prompt}],
+        tokenize=False,
+        add_generation_prompt=True
     )
     inputs = llm_tokenizer(formatted, return_tensors="pt").to(device)
-    output = llm_model.generate(**inputs, max_new_tokens=max_new_tokens,
-                                 temperature=0.3, do_sample=True,
-                                 pad_token_id=llm_tokenizer.eos_token_id)
+    output = llm_model.generate(
+        **inputs,
+        max_new_tokens=max_new_tokens,
+        temperature=0.3,
+        do_sample=True,
+        pad_token_id=llm_tokenizer.eos_token_id
+    )
     return llm_tokenizer.decode(output[0][inputs["input_ids"].shape[-1]:], skip_special_tokens=True)
 
 
@@ -41,34 +49,47 @@ def build_rag_prompt(query_text, retrieved_results):
         text = retrieved_results["documents"][0][i]
         label = retrieved_results["metadatas"][0][i]["label"]
         distance = retrieved_results["distances"][0][i]
-        blocks.append(f"[Historical record #{i+1} | label: {label} | distance: {distance:.4f}]\n{text}")
+        blocks.append(
+            "[Historical record #" + str(i + 1) + " | label: " + str(label) +
+            " | distance: " + format(distance, ".4f") + "]\n" + text
+        )
     context_str = "\n\n".join(blocks)
-    return f"""You are a network security analyst. Below are similar historical network connection records, each with its known classification.
-
-{context_str}
-
-Now analyze this NEW connection, NOT in the historical database:
-"{query_text}"
-
-Is this likely "normal" or "anomaly"? State your classification clearly, then explain your reasoning."""
+    prompt = (
+        "You are a network security analyst. Below are similar historical network "
+        "connection records, each with its known classification.\n\n"
+        + context_str +
+        "\n\nNow analyze this NEW connection, NOT in the historical database:\n\""
+        + query_text +
+        "\"\n\nIs this likely \"normal\" or \"anomaly\"? State your classification "
+        "clearly, then explain your reasoning."
+    )
+    return prompt
 
 
 def build_baseline_prompt(query_text):
-    return f"""You are a network security analyst. Analyze this network connection record:
-"{query_text}"
-
-Is this likely "normal" or "anomaly"? State your classification clearly, then explain your reasoning."""
+    prompt = (
+        "You are a network security analyst. Analyze this network connection record:\n\""
+        + query_text +
+        "\"\n\nIs this likely \"normal\" or \"anomaly\"? State your classification "
+        "clearly, then explain your reasoning."
+    )
+    return prompt
 
 
 def extract_verdict(text):
     match = re.search(r"\b(normal|anomaly)\b", text, re.IGNORECASE)
-    return match.group(1).upper() if match else "UNCLEAR"
+    if match:
+        return match.group(1).upper()
+    return "UNCLEAR"
 
 
 def term(lines, alive=True):
-    cursor = '<span class="cursor">█</span>' if alive else ''
+    if alive:
+        cursor = '<span class="cursor">█</span>'
+    else:
+        cursor = ''
     body = "<br>".join(lines) + cursor
-    return f'<div class="term-body">{body}</div>'
+    return '<div class="term-body">' + body + '</div>'
 
 
 def classify_connection(query_text):
@@ -76,10 +97,14 @@ def classify_connection(query_text):
         yield term(["[ERROR] no input provided"], False), term([], False), term([], False), "—"
         return
 
-    retrieval_log = [f"root@rag-engine:~$ query received", f"> \"{query_text[:60]}...\"", "[INIT] embedding query..."]
+    retrieval_log = [
+        "root@rag-engine:~$ query received",
+        "> \"" + query_text[:60] + "...\"",
+        "[INIT] embedding query..."
+    ]
     baseline_log = ["root@baseline-llm:~$ standing by..."]
     rag_log = ["root@rag-llm:~$ standing by..."]
-    yield term(retrieval_log), term(baseline_log), term(rag_log), "## VERDICT: ⏳ PROCESSING"
+    yield term(retrieval_log), term(baseline_log), term(rag_log), "## VERDICT: PROCESSING"
 
     try:
         retrieved = retrieve_similar_attacks(query_text, top_k=5)
@@ -89,38 +114,113 @@ def classify_connection(query_text):
             label = retrieved["metadatas"][0][i]["label"]
             dist = retrieved["distances"][0][i]
             snippet = retrieved["documents"][0][i][:70].replace("\n", " ")
-            retrieval_log.append(f"  #{i+1} [{label}] dist={dist:.2f} :: {snippet}...")
+            retrieval_log.append(
+                "  #" + str(i + 1) + " [" + str(label) + "] dist=" +
+                format(dist, ".2f") + " :: " + snippet + "..."
+            )
         retrieval_log.append("[DONE] retrieval complete")
     except Exception as e:
-        retrieval_log.append(f"[FATAL] {e}")
-        yield term(retrieval_log, False), term(baseline_log, False), term(rag_log, False), "## VERDICT: ⚠️ ERROR"
+        retrieval_log.append("[FATAL] " + str(e))
+        yield term(retrieval_log, False), term(baseline_log, False), term(rag_log, False), "## VERDICT: ERROR"
         return
 
-    yield term(retrieval_log), term(baseline_log), term(rag_log), "## VERDICT: ⏳ PROCESSING"
+    yield term(retrieval_log), term(baseline_log), term(rag_log), "## VERDICT: PROCESSING"
 
     baseline_log = ["root@baseline-llm:~$ generating (no context)..."]
-    yield term(retrieval_log), term(baseline_log), term(rag_log), "## VERDICT: ⏳ PROCESSING"
+    yield term(retrieval_log), term(baseline_log), term(rag_log), "## VERDICT: PROCESSING"
     try:
         baseline = ask_llm(build_baseline_prompt(query_text))
         baseline_log.append("[DONE]")
         baseline_log.append(baseline)
     except Exception as e:
-        baseline_log.append(f"[FATAL] {e}")
-        yield term(retrieval_log), term(baseline_log, False), term(rag_log, False), "## VERDICT: ⚠️ ERROR"
+        baseline_log.append("[FATAL] " + str(e))
+        yield term(retrieval_log), term(baseline_log, False), term(rag_log, False), "## VERDICT: ERROR"
         return
 
-    yield term(retrieval_log), term(baseline_log), term(rag_log), "## VERDICT: ⏳ PROCESSING"
+    yield term(retrieval_log), term(baseline_log), term(rag_log), "## VERDICT: PROCESSING"
 
     rag_log = ["root@rag-llm:~$ generating (with retrieved context)..."]
-    yield term(retrieval_log), term(baseline_log), term(rag_log), "## VERDICT: ⏳ PROCESSING"
+    yield term(retrieval_log), term(baseline_log), term(rag_log), "## VERDICT: PROCESSING"
     try:
         rag_response = ask_llm(build_rag_prompt(query_text, retrieved))
         rag_log.append("[DONE]")
         rag_log.append(rag_response)
     except Exception as e:
-        rag_log.append(f"[FATAL] {e}")
-        yield term(retrieval_log, False), term(baseline_log, False), term(rag_log, False), "## VERDICT: ⚠️ ERROR"
+        rag_log.append("[FATAL] " + str(e))
+        yield term(retrieval_log, False), term(baseline_log, False), term(rag_log, False), "## VERDICT: ERROR"
         return
 
     verdict = extract_verdict(rag_response)
-    color = "#00ff66" if verdict == "NORMAL" else "#ff3b3b" if verdict == "ANOMALY" else
+    if verdict == "NORMAL":
+        color = "#00ff66"
+    elif verdict == "ANOMALY":
+        color = "#ff3b3b"
+    else:
+        color = "#ffaa00"
+
+    verdict_md = '<h2 style="color:' + color + '">VERDICT: ' + verdict + '</h2>'
+    yield term(retrieval_log, False), term(baseline_log, False), term(rag_log, False), verdict_md
+
+
+CSS = """
+body, .gradio-container { background: #050805 !important; }
+.term-titlebar {
+    background: #0f1a0f;
+    padding: 4px 10px;
+    font-family: monospace;
+    color: #00ff66;
+    font-size: 12px;
+    border-bottom: 1px solid #00ff66;
+}
+.term-body {
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    color: #00ff66;
+    padding: 10px;
+    height: 220px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    background: #0a0f0a;
+    border: 1px solid #00ff66;
+    border-radius: 6px;
+}
+.cursor { animation: blink 1s step-start infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+textarea, input {
+    background: #0a0f0a !important;
+    color: #00ff66 !important;
+    font-family: monospace !important;
+    border: 1px solid #00ff66 !important;
+}
+button {
+    background: #0a0f0a !important;
+    color: #00ff66 !important;
+    border: 1px solid #00ff66 !important;
+    font-family: monospace !important;
+}
+"""
+
+with gr.Blocks(title="RAG Intrusion Console", css=CSS) as demo:
+    gr.HTML('<h1 style="color:#00ff66;font-family:monospace;">NETWORK INTRUSION ANALYSIS CONSOLE</h1>')
+    inp = gr.Textbox(label="> describe connection", lines=3)
+    btn = gr.Button("EXECUTE ANALYSIS")
+    verdict_box = gr.Markdown()
+
+    with gr.Row():
+        with gr.Column():
+            gr.HTML('<div class="term-titlebar">rag-engine:~/retrieval.log</div>')
+            retrieval_box = gr.HTML()
+        with gr.Column():
+            gr.HTML('<div class="term-titlebar">baseline-llm:~/output.log</div>')
+            baseline_box = gr.HTML()
+        with gr.Column():
+            gr.HTML('<div class="term-titlebar">rag-llm:~/output.log</div>')
+            rag_box = gr.HTML()
+
+    btn.click(
+        classify_connection,
+        inputs=inp,
+        outputs=[retrieval_box, baseline_box, rag_box, verdict_box]
+    )
+
+demo.launch()
