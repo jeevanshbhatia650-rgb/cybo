@@ -228,4 +228,4 @@ with gr.Blocks(title="RAG Intrusion Console") as demo:
         outputs=[retrieval_box, baseline_box, rag_box, verdict_box]
     )
 
-demo.launch()
+demo.launch(server_name="0.0.0.0", server_port=7860, show_error=True)
