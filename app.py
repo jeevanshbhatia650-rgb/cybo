@@ -200,7 +200,7 @@ button {
 }
 """
 
-with gr.Blocks(title="RAG Intrusion Console", css=CSS) as demo:
+with gr.Blocks(title="RAG Intrusion Console") as demo:
     gr.HTML('<h1 style="color:#00ff66;font-family:monospace;">NETWORK INTRUSION ANALYSIS CONSOLE</h1>')
     inp = gr.Textbox(label="> describe connection", lines=3)
     btn = gr.Button("EXECUTE ANALYSIS")
@@ -223,4 +223,4 @@ with gr.Blocks(title="RAG Intrusion Console", css=CSS) as demo:
         outputs=[retrieval_box, baseline_box, rag_box, verdict_box]
     )
 
-demo.launch()
+demo.launch(server_name="0.0.0.0", server_port=7860, css=CSS)
