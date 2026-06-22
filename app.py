@@ -1,24 +1,27 @@
+import os
+os.environ["GRADIO_SERVER_PORT"] = "7860"
+
 import gradio as gr
 import chromadb
 from sentence_transformers import SentenceTransformer
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
 import re
- 
+
 CHROMA_PATH = "./chroma_store_export"
 client = chromadb.PersistentClient(path=CHROMA_PATH)
 collection = client.get_or_create_collection(name="nslkdd_attacks")
- 
+
 embed_model = SentenceTransformer("nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True)
- 
+
 LLM_NAME = "Qwen/Qwen2.5-7B-Instruct"
 llm_tokenizer = AutoTokenizer.from_pretrained(LLM_NAME)
 llm_model = AutoModelForCausalLM.from_pretrained(LLM_NAME, torch_dtype=torch.float16)
- 
+
 device = "cuda" if torch.cuda.is_available() else "cpu"
 llm_model.to(device)
- 
- 
+
+
 def ask_llm(prompt, max_new_tokens=300):
     formatted = llm_tokenizer.apply_chat_template(
         [{"role": "user", "content": prompt}],
@@ -34,13 +37,13 @@ def ask_llm(prompt, max_new_tokens=300):
         pad_token_id=llm_tokenizer.eos_token_id
     )
     return llm_tokenizer.decode(output[0][inputs["input_ids"].shape[-1]:], skip_special_tokens=True)
- 
- 
+
+
 def retrieve_similar_attacks(query_text, top_k=5):
     query_vector = embed_model.encode(query_text).tolist()
     return collection.query(query_embeddings=[query_vector], n_results=top_k)
- 
- 
+
+
 def build_rag_prompt(query_text, retrieved_results):
     blocks = []
     for i in range(len(retrieved_results["documents"][0])):
@@ -62,8 +65,8 @@ def build_rag_prompt(query_text, retrieved_results):
         "clearly, then explain your reasoning."
     )
     return prompt
- 
- 
+
+
 def build_baseline_prompt(query_text):
     prompt = (
         "You are a network security analyst. Analyze this network connection record:\n\""
@@ -72,23 +75,23 @@ def build_baseline_prompt(query_text):
         "clearly, then explain your reasoning."
     )
     return prompt
- 
- 
+
+
 def extract_verdict(text):
     match = re.search(r"\b(normal|anomaly)\b", text, re.IGNORECASE)
     if match:
         return match.group(1).upper()
     return "UNCLEAR"
- 
- 
+
+
 def esc(s):
     return (
         s.replace("&", "&amp;")
          .replace("<", "&lt;")
          .replace(">", "&gt;")
     )
- 
- 
+
+
 def term(lines, alive=True, tone_first_word=True):
     """Render a list of (text, css_class) tuples or plain strings into a terminal body."""
     rendered = []
@@ -101,8 +104,8 @@ def term(lines, alive=True, tone_first_word=True):
     cursor = '<span class="cursor"></span>' if alive else ''
     body = "<br>".join(rendered) + cursor
     return '<div class="term-body">' + body + '</div>'
- 
- 
+
+
 def verdict_html(state, label=None):
     """state: 'idle' | 'processing' | 'normal' | 'anomaly' | 'error' | 'unclear'"""
     if state == "idle":
@@ -116,8 +119,8 @@ def verdict_html(state, label=None):
     if state == "anomaly":
         return '<div class="verdict-bar anomaly">⚠ VERDICT: ANOMALY DETECTED</div>'
     return '<div class="verdict-bar unclear">? VERDICT: UNCLEAR</div>'
- 
- 
+
+
 def classify_connection(query_text):
     if not query_text.strip():
         yield (
@@ -127,7 +130,7 @@ def classify_connection(query_text):
             verdict_html("idle"),
         )
         return
- 
+
     retrieval_log = [
         "root@rag-engine:~$ query received",
         "> \"" + query_text[:60] + "...\"",
@@ -136,7 +139,7 @@ def classify_connection(query_text):
     baseline_log = [("root@baseline-llm:~$ standing by...", "dim")]
     rag_log = [("root@rag-llm:~$ standing by...", "dim")]
     yield term(retrieval_log), term(baseline_log), term(rag_log), verdict_html("processing")
- 
+
     try:
         retrieved = retrieve_similar_attacks(query_text, top_k=5)
         retrieval_log.append(("[OK] embedding complete", "ok"))
@@ -154,9 +157,9 @@ def classify_connection(query_text):
         retrieval_log.append(("[FATAL] " + str(e), "err"))
         yield term(retrieval_log, False), term(baseline_log, False), term(rag_log, False), verdict_html("error")
         return
- 
+
     yield term(retrieval_log), term(baseline_log), term(rag_log), verdict_html("processing")
- 
+
     baseline_log = [("root@baseline-llm:~$ generating (no context)...", "dim")]
     yield term(retrieval_log), term(baseline_log), term(rag_log), verdict_html("processing")
     try:
@@ -167,9 +170,9 @@ def classify_connection(query_text):
         baseline_log.append(("[FATAL] " + str(e), "err"))
         yield term(retrieval_log), term(baseline_log, False), term(rag_log, False), verdict_html("error")
         return
- 
+
     yield term(retrieval_log), term(baseline_log), term(rag_log), verdict_html("processing")
- 
+
     rag_log = [("root@rag-llm:~$ generating (with retrieved context)...", "dim")]
     yield term(retrieval_log), term(baseline_log), term(rag_log), verdict_html("processing")
     try:
@@ -180,21 +183,21 @@ def classify_connection(query_text):
         rag_log.append(("[FATAL] " + str(e), "err"))
         yield term(retrieval_log, False), term(baseline_log, False), term(rag_log, False), verdict_html("error")
         return
- 
+
     verdict = extract_verdict(rag_response)
     state = {"NORMAL": "normal", "ANOMALY": "anomaly"}.get(verdict, "unclear")
- 
+
     yield (
         term(retrieval_log, False),
         term(baseline_log, False),
         term(rag_log, False),
         verdict_html(state),
     )
- 
- 
+
+
 CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
- 
+
 :root {
   --void: #06070a;
   --panel-border: #1c2128;
@@ -206,12 +209,12 @@ CSS = """
   --text-dim: #6b7280;
   --text-mid: #9ca3af;
 }
- 
+
 body, .gradio-container {
   background: var(--void) !important;
   font-family: 'JetBrains Mono', monospace !important;
 }
- 
+
 /* fixed animated backdrop canvas, injected once via JS below */
 #bg-canvas {
   position: fixed; inset: 0; z-index: 0; pointer-events: none;
@@ -227,9 +230,9 @@ body, .gradio-container {
   background: repeating-linear-gradient(to bottom, rgba(255,255,255,0.018) 0px, rgba(255,255,255,0.018) 1px, transparent 1px, transparent 3px);
   mix-blend-mode: overlay;
 }
- 
+
 .gradio-container, .gradio-container * { position: relative; z-index: 5; }
- 
+
 /* header */
 .console-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -260,14 +263,14 @@ body, .gradio-container {
   padding: 7px 14px; border-radius: 100px;
 }
 .status-pill .dot { width:6px; height:6px; border-radius:50%; background: var(--cyan); box-shadow:0 0 8px var(--cyan); animation: pulse-dot 1.8s ease-in-out infinite; display:inline-block; }
- 
+
 /* input area */
 .console-input-label {
   font-size: 11px; letter-spacing: .1em; text-transform: uppercase;
   color: var(--text-mid); margin-bottom: 6px;
 }
 .console-input-label::before { content: '>_ '; color: var(--cyan); }
- 
+
 textarea, input[type="text"] {
   background: #050709 !important;
   color: var(--phosphor) !important;
@@ -279,7 +282,7 @@ textarea:focus, input[type="text"]:focus {
   border-color: var(--cyan) !important;
   box-shadow: 0 0 0 3px rgba(0,240,196,.12) !important;
 }
- 
+
 button {
   font-family: 'Space Grotesk', sans-serif !important;
   font-weight: 600 !important;
@@ -293,7 +296,7 @@ button.primary, .run-btn-row button {
   border: none !important;
   box-shadow: 0 0 24px rgba(0,240,196,.35) !important;
 }
- 
+
 /* verdict bar */
 .verdict-bar {
   display: flex; align-items: center; justify-content: center; gap: 12px;
@@ -308,7 +311,7 @@ button.primary, .run-btn-row button {
 .verdict-bar.anomaly { color: var(--red); border-color: rgba(255,77,77,.45); box-shadow: 0 0 30px -10px rgba(255,77,77,.45); }
 .verdict-bar.error { color: var(--red); border-color: rgba(255,77,77,.45); }
 .verdict-bar.unclear { color: var(--amber); border-color: rgba(255,176,32,.4); }
- 
+
 /* terminal windows */
 .term-titlebar {
   display: flex; align-items: center; gap: 10px; padding: 10px 14px;
@@ -325,7 +328,7 @@ button.primary, .run-btn-row button {
 .term-name .accent.violet { color: var(--violet); }
 .term-name .accent.amber { color: var(--amber); }
 .term-name .accent.cyan { color: var(--cyan); }
- 
+
 .term-body {
   font-family: 'JetBrains Mono', monospace !important;
   font-size: 12.5px; line-height: 1.6;
@@ -342,25 +345,25 @@ button.primary, .run-btn-row button {
 .term-body .ok { color: var(--cyan); }
 .term-body .err { color: var(--red); }
 .term-body .warn { color: var(--amber); }
- 
+
 .cursor {
   display: inline-block; width: 7px; height: 14px;
   background: var(--phosphor); vertical-align: middle; margin-left: 2px;
   animation: blink 1s step-start infinite;
 }
 @keyframes blink { 50% { opacity: 0; } }
- 
+
 .footer-note {
   text-align: center; margin-top: 18px; font-size: 11px;
   color: var(--text-dim); letter-spacing: .05em;
 }
 """
- 
+
 HEADER_HTML = """
 <canvas id="bg-canvas"></canvas>
 <div class="bg-grad"></div>
 <div class="scanlines"></div>
- 
+
 <div class="console-header">
   <div class="brand-row">
     <div class="brand-mark"></div>
@@ -372,28 +375,28 @@ HEADER_HTML = """
   <div class="status-pill"><span class="dot"></span> ENGINE ONLINE</div>
 </div>
 """
- 
+
 TERM_HEADER_RETRIEVAL = """
 <div class="term-titlebar">
   <div class="term-dots"><span></span><span></span><span></span></div>
   <div class="term-name">rag-engine:~/<span class="accent violet">retrieval.log</span></div>
 </div>
 """
- 
+
 TERM_HEADER_BASELINE = """
 <div class="term-titlebar">
   <div class="term-dots"><span></span><span></span><span></span></div>
   <div class="term-name">baseline-llm:~/<span class="accent amber">output.log</span></div>
 </div>
 """
- 
+
 TERM_HEADER_RAG = """
 <div class="term-titlebar">
   <div class="term-dots"><span></span><span></span><span></span></div>
   <div class="term-name">rag-llm:~/<span class="accent cyan">output.log</span></div>
 </div>
 """
- 
+
 BG_SCRIPT = """
 <script>
 (function() {
@@ -409,11 +412,11 @@ BG_SCRIPT = """
     }
     window.addEventListener('resize', resize);
     resize();
- 
+
     const RADIUS = Math.min(window.innerWidth, window.innerHeight) * 0.4;
     let angleY = 0;
     const angleX = 0.45;
- 
+
     function project(x, y, z, cx, cy) {
       const fov = 700;
       const factor = fov / (fov + z);
@@ -428,9 +431,9 @@ BG_SCRIPT = """
       let z2 = y * sinX + z1 * cosX;
       return [x1, y1, z2];
     }
- 
+
     const LAT_STEPS = 12, LON_STEPS = 20;
- 
+
     function drawGlobe() {
       const cx = W * 0.8, cy = H * 0.3;
       ctx.lineWidth = 1;
@@ -467,13 +470,13 @@ BG_SCRIPT = """
         ctx.stroke();
       }
     }
- 
+
     const cols = [];
     const COL_COUNT = 22;
     for (let i = 0; i < COL_COUNT; i++) {
       cols.push({ x: Math.random() * window.innerWidth, y: Math.random() * window.innerHeight, speed: 0.4 + Math.random() * 1.1, len: 4 + Math.floor(Math.random() * 7) });
     }
- 
+
     function drawColumns() {
       ctx.font = '11px JetBrains Mono, monospace';
       for (const c of cols) {
@@ -489,7 +492,7 @@ BG_SCRIPT = """
         if (c.y > H + 100) { c.y = -50; c.x = Math.random() * W; }
       }
     }
- 
+
     function tick() {
       ctx.clearRect(0, 0, W, H);
       ctx.fillStyle = '#06070a';
@@ -508,10 +511,10 @@ BG_SCRIPT = """
 })();
 </script>
 """
- 
-with gr.Blocks(title="Intrusion Console", css=CSS) as demo:
+
+with gr.Blocks(title="Intrusion Console") as demo:
     gr.HTML(HEADER_HTML)
- 
+
     with gr.Group(elem_classes="input-panel"):
         gr.HTML('<div class="console-input-label">DESCRIBE CONNECTION</div>')
         inp = gr.Textbox(
@@ -521,9 +524,9 @@ with gr.Blocks(title="Intrusion Console", css=CSS) as demo:
         )
         with gr.Row(elem_classes="run-btn-row"):
             btn = gr.Button("Execute Analysis", variant="primary")
- 
+
     verdict_box = gr.HTML(verdict_html("idle"))
- 
+
     with gr.Row():
         with gr.Column():
             gr.HTML(TERM_HEADER_RETRIEVAL)
@@ -534,15 +537,14 @@ with gr.Blocks(title="Intrusion Console", css=CSS) as demo:
         with gr.Column():
             gr.HTML(TERM_HEADER_RAG)
             rag_box = gr.HTML(term([("root@rag-llm:~$ standing by...", "dim")], False))
- 
+
     gr.HTML('<div class="footer-note">NSL-KDD VECTOR STORE · QWEN2.5-7B-INSTRUCT · CHROMADB</div>')
     gr.HTML(BG_SCRIPT)
- 
+
     btn.click(
         classify_connection,
         inputs=inp,
         outputs=[retrieval_box, baseline_box, rag_box, verdict_box]
     )
- 
-demo.launch(server_name="0.0.0.0", server_port=7860)
- 
+
+demo.launch(server_name="0.0.0.0", server_port=7860, css=CSS)
