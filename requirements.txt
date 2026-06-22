@@ -1,8 +1,0 @@
-gradio==4.44.1
-audioop-lts
-chromadb
-sentence-transformers
-transformers
-torch
-accelerate
-einops
