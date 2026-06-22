@@ -509,7 +509,7 @@ BG_SCRIPT = """
 </script>
 """
  
-with gr.Blocks(title="Intrusion Console") as demo:
+with gr.Blocks(title="Intrusion Console", css=CSS) as demo:
     gr.HTML(HEADER_HTML)
  
     with gr.Group(elem_classes="input-panel"):
@@ -544,5 +544,5 @@ with gr.Blocks(title="Intrusion Console") as demo:
         outputs=[retrieval_box, baseline_box, rag_box, verdict_box]
     )
  
-demo.launch(server_name="0.0.0.0", server_port=7860, css=CSS, show_error=True, ssr_mode=False)
+demo.launch(server_name="0.0.0.0", server_port=7860)
  
