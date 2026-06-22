@@ -1,10 +1,3 @@
-import os
-try:
-    import spaces
-    HAS_SPACES = True
-except ImportError:
-    HAS_SPACES = False
-
 import gradio as gr
 import chromadb
 from sentence_transformers import SentenceTransformer
@@ -228,4 +221,4 @@ with gr.Blocks(title="RAG Intrusion Console") as demo:
         outputs=[retrieval_box, baseline_box, rag_box, verdict_box]
     )
 
-demo.launch(server_name="0.0.0.0", server_port=7860, show_error=True)
+demo.launch(server_name="0.0.0.0", server_port=7860, css=CSS, show_error=True)
