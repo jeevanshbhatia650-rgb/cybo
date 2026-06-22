@@ -1,0 +1,9 @@
+gradio==4.44.1
+audioop-lts
+huggingface_hub==0.23.4
+chromadb
+sentence-transformers
+transformers
+torch
+accelerate
+einops
