@@ -512,7 +512,7 @@ BG_SCRIPT = """
 </script>
 """
 
-with gr.Blocks(title="Intrusion Console", css=CSS) as demo:
+with gr.Blocks(title="Intrusion Console", css=CSS, head=BG_SCRIPT) as demo:
     gr.HTML(HEADER_HTML)
 
     with gr.Group(elem_classes="input-panel"):
@@ -539,7 +539,7 @@ with gr.Blocks(title="Intrusion Console", css=CSS) as demo:
             rag_box = gr.HTML(term([("root@rag-llm:~$ standing by...", "dim")], False))
 
     gr.HTML('<div class="footer-note">NSL-KDD VECTOR STORE · QWEN2.5-7B-INSTRUCT · CHROMADB</div>')
-    gr.HTML(BG_SCRIPT)
+    # BG_SCRIPT is injected via Blocks(head=...) instead — see bottom of file.
 
     btn.click(
         classify_connection,
