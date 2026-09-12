@@ -1,71 +1,61 @@
 ---
 
-title: Attack Prompt RAG
-emoji: 🛡️
-colorFrom: red
-colorTo: yellow
-sdk: gradio
-sdk_version: 4.44.1
-python_version: '3.13'
-app_file: app.py
+title: "Attack Prompt RAG"
+emoji: "🛡️"
+colorFrom: "red"
+colorTo: "yellow"
+sdk: "gradio"
+sdk_version: "4.44.1"
+python_version: "3.13"
+app_file: "app.py"
 pinned: false
 -------------
 
 # 🛡️ Attack Prompt RAG
 
-A **Retrieval-Augmented Generation (RAG)** system for network attack/anomaly analysis.
+A **RAG-based network anomaly detection system** that retrieves similar historical attack records and uses **Qwen2.5-7B-Instruct** to classify new network connections.
 
-It retrieves similar historical network records from a ChromaDB vector database and provides them as context to **Qwen2.5-7B-Instruct** for classification.
-
-### 🚀 Live Demo
+## 🚀 Live Demo
 
 https://huggingface.co/spaces/jeevrtxg/attack_prompt_rag
-
-### 📂 Source
-
-https://github.com/jeevanshbhatia650-rgb/cybo
-
----
 
 ## 🔄 Workflow
 
 ```text
-Network Connection Input
-          ↓
+Network Connection
+       ↓
 Nomic Embeddings
-          ↓
+       ↓
 ChromaDB Vector Search
-          ↓
-Top-5 Similar Historical Records
-          ↓
-   ┌──────┴──────┐
-   ↓             ↓
-Baseline       RAG
-LLM            LLM
-   │             │
-   └──────┬──────┘
-          ↓
-   Verdict Extraction
-          ↓
- NORMAL / ANOMALY
+       ↓
+Top-5 Similar Records
+       ↓
+ ┌─────┴─────┐
+ ↓           ↓
+Baseline     RAG
+LLM          LLM
+ ↓           ↓
+ └─────┬─────┘
+       ↓
+Verdict Extraction
+       ↓
+NORMAL / ANOMALY
 ```
 
-The system compares:
+### Baseline vs RAG
 
-* **Baseline:** LLM prediction without retrieved context
-* **RAG:** LLM prediction using historical attack records
-
----
+* **Baseline:** LLM classification without historical context
+* **RAG:** LLM classification using retrieved historical records
 
 ## 📊 Knowledge Base
 
-The project uses a ChromaDB collection:
+ChromaDB collection:
 
 ```text
 nslkdd_attacks
 ```
 
-The persisted vector database is stored in:
+Stored in:
 
 ```text
 chroma_store_export/
@@ -73,9 +63,7 @@ chroma_store_export/
 
 The knowledge base contains **NSL-KDD-style network intrusion records**.
 
-> Raw NSL-KDD CSV files are not included; the repository contains the persisted Chroma knowledge base.
-
----
+> Raw NSL-KDD CSV files are not included. The persisted ChromaDB knowledge base is included.
 
 ## 🤖 Tech Stack
 
@@ -86,9 +74,6 @@ The knowledge base contains **NSL-KDD-style network intrusion records**.
 | Vector DB  | ChromaDB                         |
 | UI         | Gradio                           |
 | Runtime    | PyTorch + Transformers           |
-| Retrieval  | Top-5 similarity search          |
-
----
 
 ## 🧪 Sample Inputs
 
@@ -104,29 +89,25 @@ protocol_type=tcp, service=http, flag=SF, src_bytes=1200, dst_bytes=4500, count=
 protocol_type=tcp, service=http, flag=S0, src_bytes=0, dst_bytes=0, count=40, serror_rate=0.95
 ```
 
-### Port-scan-like
+### Port Scan
 
 ```text
 protocol_type=tcp, service=private, flag=S0, src_bytes=0, dst_bytes=0, count=80, diff_srv_rate=0.95
 ```
 
-> These are illustrative test inputs, not guaranteed ground-truth labels.
-
----
+> These are illustrative test inputs and are not guaranteed ground-truth labels.
 
 ## 🖥️ UI
 
-The Gradio interface provides:
+The application displays:
 
-* 🔎 Retrieval logs
-* 📚 Top-5 retrieved records
-* 🤖 Baseline LLM response
-* 🧠 RAG response
-* 🚨 Final anomaly verdict
+* Retrieval logs
+* Top-5 similar records
+* Baseline LLM response
+* RAG response
+* Final anomaly verdict
 
----
-
-## 📁 Structure
+## 📁 Project Structure
 
 ```text
 cybo/
@@ -136,8 +117,6 @@ cybo/
 └── README.md
 ```
 
----
-
 ## ⚙️ Run Locally
 
 ```bash
@@ -145,62 +124,41 @@ git clone https://github.com/jeevanshbhatia650-rgb/cybo.git
 cd cybo
 
 python -m venv .venv
-# Activate the environment
-
 pip install -r requirements.txt
+
 python app.py
 ```
 
-Then open:
+Open:
 
 ```text
 http://127.0.0.1:7860
 ```
 
----
+## 📈 Evaluation
 
-## 📈 RAG vs Baseline
+The system can be evaluated using:
 
-The project can be used to evaluate whether retrieved historical examples improve LLM-based network anomaly classification.
-
-Recommended metrics:
-
-```text
-Accuracy
-Precision
-Recall
-F1 Score
-False Positive Rate
-False Negative Rate
-```
-
----
-
-## ⚠️ Limitations
-
-* Prototype-level IDS/RAG system
-* Simple regex-based verdict extraction
-* No calibrated confidence score
-* 7B LLM can be resource-intensive
-* Requires proper held-out evaluation for meaningful performance claims
-
----
+* Accuracy
+* Precision
+* Recall
+* F1 Score
+* False Positive Rate
+* False Negative Rate
+* RAG vs Baseline improvement
 
 ## 🚀 Future Work
 
 * Real-time network traffic ingestion
-* Hybrid vector + keyword retrieval
+* Hybrid retrieval
 * Retrieval reranking
-* Structured JSON outputs
+* Structured JSON output
 * Confidence scoring
 * Adversarial robustness testing
 * RAG vs baseline benchmarking
-
----
 
 ## 👤 Author
 
 **Jeevansh Bhatia**
 
-GitHub:
-https://github.com/jeevanshbhatia650-rgb
+GitHub: https://github.com/jeevanshbhatia650-rgb
